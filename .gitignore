@@ -1,15 +1,17 @@
-# Environment variables
-.env
-
 # Python cache
 __pycache__/
 *.pyc
 
 # Virtual environment
+.venv/
 venv/
-*.venv/
-ENV/
-env/
+
+# Environment variables
+.env
+
+# IDE/Editor specific
+.vscode/
+.idea/
 
 # OS generated files
 .DS_Store
