@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Cost Dashboard - OKTA Authentication{% endblock %}
+
+{% block head %}
+<style>
+    .time-range-form {
+        margin-bottom: 20px;
+    }
+    .dashboard-header {
+        margin-bottom: 20px;
+    }
+    .grafana-iframe {
+        width: 100%;
+        height: 800px;
+        border: none;
+    }
+    .auth-message {
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1 class="mb-2">Cost Dashboard</h1>
+    <p>Dashboard UID: {{ dashboard_uid }}</p>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Time Range Selection</h5>
+    </div>
+    <div class="card-body">
+        <form class="time-range-form" method="get">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="from">From</label>
+                        <select class="form-select" id="from" name="from">
+                            <option value="now-1h">Last 1 hour</option>
+                            <option value="now-6h">Last 6 hours</option>
+                            <option value="now-12h">Last 12 hours</option>
+                            <option value="now-24h">Last 24 hours</option>
+                            <option value="now-2d">Last 2 days</option>
+                            <option value="now-7d" selected>Last 7 days</option>
+                            <option value="now-30d">Last 30 days</option>
+                            <option value="now-90d">Last 90 days</option>
+                            <option value="now-6M">Last 6 months</option>
+                            <option value="now-1y">Last 1 year</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="to">To</label>
+                        <select class="form-select" id="to" name="to">
+                            <option value="now" selected>Now</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="theme">Theme</label>
+                        <select class="form-select" id="theme" name="theme">
+                            <option value="light" selected>Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">Apply</button>
+        </form>
+    </div>
+</div>
+
+<div class="alert alert-info auth-message">
+    <h5>OKTA Authentication Notice</h5>
+    <p>You'll be prompted to authenticate with OKTA if you're not already logged in. After authentication, the dashboard will be displayed below.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Dashboard</h5>
+    </div>
+    <div class="card-body p-0">
+        <iframe src="{{ embed_url }}" class="grafana-iframe"></iframe>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Pre-select the current time range values from URL parameters
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const fromParam = urlParams.get('from');
+        const toParam = urlParams.get('to');
+        const themeParam = urlParams.get('theme');
+        
+        if (fromParam) {
+            const fromSelect = document.getElementById('from');
+            for (let i = 0; i < fromSelect.options.length; i++) {
+                if (fromSelect.options[i].value === fromParam) {
+                    fromSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        if (themeParam) {
+            const themeSelect = document.getElementById('theme');
+            for (let i = 0; i < themeSelect.options.length; i++) {
+                if (themeSelect.options[i].value === themeParam) {
+                    themeSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

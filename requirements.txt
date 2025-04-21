@@ -1,0 +1,5 @@
+Flask
+requests
+python-dotenv
+pandas
+plotly==5.14.1

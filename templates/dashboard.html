@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{{ dashboard_title }} - Analysis{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1 class="mb-3">{{ dashboard_title }} - Analysis & Insights</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Gemini Analysis</h5>
+    </div>
+    <div class="card-body">
+        {% if insights %}
+            {# Render insights, preserving line breaks and formatting #}
+            <pre style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">{{ insights }}</pre>
+        {% else %}
+            <div class="alert alert-warning m-3">
+                No insights were generated, or an error occurred.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

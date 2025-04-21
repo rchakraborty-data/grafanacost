@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Grafana Cost Dashboards - OKTA{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+    <h1 class="display-4">Grafana Cost Dashboards</h1>
+    <p class="lead">Access your cost dashboards with OKTA authentication</p>
+    <hr class="my-4">
+    <p>This application allows you to access your Grafana cost dashboards. You'll be authenticated through OKTA when accessing the dashboards.</p>
+    
+    {% if default_dashboard_id %}
+    <a href="{{ url_for('view_dashboard', uid=default_dashboard_id) }}" class="btn btn-primary btn-lg">
+        View Default Cost Dashboard
+    </a>
+    {% else %}
+    <div class="alert alert-warning">
+        <p>No default dashboard ID is configured. Please set the GRAFANA_COST_DASHBOARD_ID in your .env file.</p>
+        <p>You can find this ID by going to your cost dashboard in Grafana and copying the UID from the URL:</p>
+        <code>{{ grafana_url }}/d/<strong>dashboard-uid</strong>/dashboard-name</code>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h3>How to Find Dashboard UIDs</h3>
+    </div>
+    <div class="card-body">
+        <p>To find a dashboard's UID:</p>
+        <ol>
+            <li>Log in to your Grafana instance at <a href="{{ grafana_url }}" target="_blank">{{ grafana_url }}</a></li>
+            <li>Navigate to the dashboard you want to access</li>
+            <li>Look at the URL in your browser's address bar</li>
+            <li>The URL format will be: <code>{{ grafana_url }}/d/<strong>dashboard-uid</strong>/dashboard-name</code></li>
+            <li>Copy the <strong>dashboard-uid</strong> part</li>
+            <li>Use this UID to access the dashboard through this application</li>
+        </ol>
+    </div>
+</div>
+{% endblock %}
