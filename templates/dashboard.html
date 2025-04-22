@@ -1,30 +1,337 @@
 {% extends "base.html" %}
 
-{% block title %}{{ dashboard_title }} - Analysis{% endblock %}
+{% block title %}{{ dashboard_title }} - Cost Analysis{% endblock %}
 
 {% block content %}
-<div class="dashboard-header">
-    <h1 class="mb-3">{{ dashboard_title }} - Analysis & Insights</h1>
+<div class="analysis-header mb-4">
+  <div class="row align-items-center">
+    <div class="col-md-8">
+      <h1 class="section-heading mb-2">{{ dashboard_title }}</h1>
+      <p class="text-secondary">Cost Analysis Report and Optimization Recommendations</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+      <div class="btn-group">
+        <a href="{{ url_for('download_pdf_report', uid=request.view_args.uid) }}" class="btn btn-success me-2" id="downloadPdfButton">
+          <i class="fas fa-file-pdf me-2"></i> Download PDF Report
+        </a>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+          <i class="fas fa-arrow-left me-2"></i> Analyze Another Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0">Gemini Analysis</h5>
+{% if insights %}
+  <div class="row">
+    <div class="col-lg-12">
+      <div class="insights-container">
+        <!-- Add structured formatting for insights -->
+        <div id="formatted-insights">
+          <!-- We'll format the insights in a structured way with JavaScript -->
+          {{ insights | safe }}
+        </div>
+      </div>
     </div>
-    <div class="card-body">
-        {% if insights %}
-            {# Render insights as HTML, replacing newlines with <br> #}
-            <div class="gemini-insights">
-                {{ insights | replace('\n', '<br>') | safe }}
-            </div>
-        {% else %}
-            <div class="alert alert-warning m-3">
-                No insights were generated, or an error occurred.
-            </div>
-        {% endif %}
+  </div>
+{% else %}
+  <div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i> No insights were generated, or an error occurred during analysis.
+  </div>
+  
+  <div class="card mt-4">
+    <div class="card-body text-center py-5">
+      <i class="fas fa-robot fa-4x text-secondary mb-3"></i>
+      <h3>Analysis Not Available</h3>
+      <p class="text-secondary">We couldn't generate insights for this dashboard. This might be due to:</p>
+      <ul class="text-start mx-auto" style="max-width: 500px;">
+        <li>An error connecting to the Databricks SQL service</li>
+        <li>Missing or insufficient data in the dashboard</li>
+        <li>Temporary issues with the AI analysis service</li>
+      </ul>
+      <a href="{{ url_for('index') }}" class="btn btn-primary mt-3">
+        <i class="fas fa-home me-2"></i> Return to Home Page
+      </a>
     </div>
-</div>
+  </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Format the analysis content to make it more structured and professional
+    formatInsightsContent();
+    
+    // Add table responsiveness
+    makeTablesResponsive();
+    
+    // Add syntax highlighting for code blocks if present
+    highlightCodeBlocks();
+    
+    // Process key metrics and recommendations
+    enhanceKeyInsights();
+    
+    // Format recommendations with priority labels
+    enhanceRecommendations();
+    
+    // Add loading animation when downloading PDF
+    const pdfButton = document.getElementById('downloadPdfButton');
+    if (pdfButton) {
+      pdfButton.addEventListener('click', function() {
+        // Create and show loading overlay
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.right = '0';
+        overlay.style.bottom = '0';
+        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+        overlay.style.zIndex = '9999';
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner-border text-primary';
+        spinner.style.width = '3rem';
+        spinner.style.height = '3rem';
+        spinner.setAttribute('role', 'status');
+        
+        const message = document.createElement('p');
+        message.className = 'mt-3 text-primary';
+        message.style.fontWeight = '500';
+        message.textContent = 'Generating PDF report... Please wait.';
+        
+        overlay.appendChild(spinner);
+        overlay.appendChild(message);
+        document.body.appendChild(overlay);
+        
+        // Remove overlay after PDF download completes or fails
+        setTimeout(function() {
+          document.body.removeChild(overlay);
+        }, 8000);
+      });
+    }
+  });
+  
+  function formatInsightsContent() {
+    const insightsContainer = document.querySelector('#formatted-insights');
+    if (!insightsContainer) return;
+    
+    // Add responsiveness to content
+    insightsContainer.style.wordWrap = 'break-word';
+    insightsContainer.style.overflowWrap = 'break-word';
+    
+    // Add proper padding to paragraphs for better readability
+    const paragraphs = insightsContainer.querySelectorAll('p');
+    paragraphs.forEach(p => {
+      p.style.marginBottom = '1rem';
+      p.style.lineHeight = '1.6';
+    });
+    
+    // Wrap tables in responsive containers
+    const tables = insightsContainer.querySelectorAll('table');
+    tables.forEach(table => {
+      // Add Bootstrap table classes
+      table.classList.add('table', 'table-hover');
+      
+      // If not already wrapped, wrap in responsive div
+      if (table.parentNode.className !== 'table-responsive') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-responsive data-table-container';
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+      }
+    });
+    
+    // Format headings with icons
+    const headings = insightsContainer.querySelectorAll('h2, h3');
+    headings.forEach(heading => {
+      // Don't modify headings that already have icons
+      if (heading.querySelector('i')) return;
+      
+      let icon = '';
+      const text = heading.textContent.toLowerCase();
+      
+      if (text.includes('recommendation') || text.includes('suggest')) {
+        icon = '<i class="fas fa-lightbulb text-warning me-2"></i>';
+      } else if (text.includes('insight') || text.includes('analysis')) {
+        icon = '<i class="fas fa-chart-line text-primary me-2"></i>';
+      } else if (text.includes('issue') || text.includes('problem') || text.includes('warning')) {
+        icon = '<i class="fas fa-exclamation-triangle text-danger me-2"></i>';
+      } else if (text.includes('summary')) {
+        icon = '<i class="fas fa-list-check text-success me-2"></i>';
+      } else if (text.includes('cost')) {
+        icon = '<i class="fas fa-dollar-sign text-success me-2"></i>';
+      } else {
+        icon = '<i class="fas fa-info-circle text-primary me-2"></i>';
+      }
+      
+      heading.innerHTML = icon + heading.innerHTML;
+    });
+    
+    // Style paragraphs that seem to be recommendations or insights
+    const paragraphs = insightsContainer.querySelectorAll('p');
+    paragraphs.forEach(p => {
+      const text = p.textContent.toLowerCase();
+      if ((text.includes('recommend') || text.includes('suggest') || text.includes('should')) && 
+          !p.closest('.recommendation')) {
+        // Wrap in recommendation styling
+        const wrapper = document.createElement('div');
+        wrapper.className = 'recommendation';
+        p.parentNode.insertBefore(wrapper, p);
+        wrapper.appendChild(p);
+      } else if ((text.includes('key insight') || text.includes('important finding')) && 
+                !p.closest('.key-insight')) {
+        // Wrap in key insight styling
+        const wrapper = document.createElement('div');
+        wrapper.className = 'key-insight';
+        p.parentNode.insertBefore(wrapper, p);
+        wrapper.appendChild(p);
+      } else if ((text.includes('warning') || text.includes('caution') || text.includes('attention')) && 
+                !p.closest('.warning-item')) {
+        // Wrap in warning styling
+        const wrapper = document.createElement('div');
+        wrapper.className = 'warning-item';
+        p.parentNode.insertBefore(wrapper, p);
+        wrapper.appendChild(p);
+      }
+    });
+  }
+  
+  function makeTablesResponsive() {
+    const tables = document.querySelectorAll('table');
+    tables.forEach(table => {
+      // Add data attributes for responsive tables
+      const headerCells = table.querySelectorAll('th');
+      const headerTexts = Array.from(headerCells).map(th => th.textContent.trim());
+      
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        cells.forEach((cell, index) => {
+          if (index < headerTexts.length) {
+            cell.setAttribute('data-label', headerTexts[index]);
+          }
+        });
+      });
+    });
+  }
+  
+  function highlightCodeBlocks() {
+    // This is a simplified version - you could add a proper syntax highlighter like Prism.js
+    const codeBlocks = document.querySelectorAll('pre code');
+    codeBlocks.forEach(block => {
+      block.style.display = 'block';
+      block.style.padding = '1rem';
+      block.style.backgroundColor = '#f5f7f9';
+      block.style.borderRadius = '5px';
+      block.style.border = '1px solid #e3e8ee';
+      block.style.fontFamily = 'monospace';
+    });
+  }
+  
+  function enhanceKeyInsights() {
+    const insightsContainer = document.querySelector('#formatted-insights');
+    if (!insightsContainer) return;
+    
+    // Look for cost-related metrics that could be highlighted
+    const costRegex = /\$[\d,]+(\.\d+)?|\d+(\.\d+)?\s*%/g;
+    const textNodes = Array.from(insightsContainer.querySelectorAll('p, li, td'))
+      .filter(el => !el.closest('.metric-card')); // Skip nodes already in metric cards
+    
+    textNodes.forEach(node => {
+      const text = node.textContent;
+      const matches = text.match(costRegex);
+      
+      if (matches && matches.length && node.parentNode.tagName !== 'METRIC-CARD') {
+        // If it's a simple metric with a label, create a metric card
+        if (matches.length === 1 && text.length < 100) {
+          const metricValue = matches[0];
+          let labelText = text.replace(metricValue, '').trim();
+          
+          // Only create metric cards for clear metrics with labels
+          if (labelText && !labelText.includes('.') && labelText.length < 70) {
+            const metricCard = document.createElement('div');
+            metricCard.className = 'metric-card';
+            metricCard.innerHTML = `
+              <div class="metric-value">${metricValue}</div>
+              <div class="metric-label">${labelText}</div>
+            `;
+            node.parentNode.replaceChild(metricCard, node);
+          }
+        }
+      }
+    });
+  }
+  
+  function enhanceRecommendations() {
+    const insightsContainer = document.querySelector('#formatted-insights');
+    if (!insightsContainer) return;
+    
+    // Find all recommendation blocks
+    const recommendations = insightsContainer.querySelectorAll('.recommendation');
+    recommendations.forEach(rec => {
+      // Check if this recommendation already has a title to avoid duplicating
+      if (rec.querySelector('.recommendation-title')) return;
+      
+      const paragraphs = rec.querySelectorAll('p');
+      if (paragraphs.length === 0) return;
+      
+      // Use the first paragraph as the title/main recommendation
+      const firstP = paragraphs[0];
+      const text = firstP.textContent.toLowerCase();
+      
+      // Create recommendation title element
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'recommendation-title';
+      titleDiv.innerHTML = '<i class="fas fa-lightbulb"></i> Recommendation';
+      
+      // Add priority label based on content
+      let priority = 'medium';
+      if (text.includes('critical') || text.includes('urgent') || 
+          text.includes('high priority') || text.includes('significant saving') ||
+          text.includes('immediately') || text.includes('substantial cost')) {
+        priority = 'high';
+      } else if (text.includes('consider') || text.includes('might want to') || 
+                text.includes('could potentially') || text.includes('minor') ||
+                text.includes('small improvement')) {
+        priority = 'low';
+      }
+      
+      // Add priority label
+      const prioritySpan = document.createElement('span');
+      prioritySpan.className = `recommendation-priority priority-${priority}`;
+      prioritySpan.textContent = `${priority} priority`;
+      titleDiv.appendChild(prioritySpan);
+      
+      // Insert title before first paragraph
+      rec.insertBefore(titleDiv, firstP);
+      
+      // Make important terms in recommendation bold
+      paragraphs.forEach(p => {
+        let html = p.innerHTML;
+        
+        // Find and emphasize cost values
+        html = html.replace(/(\$[\d,]+(\.\d+)?|\d+(\.\d+)?%)/g, '<strong>$1</strong>');
+        
+        // Emphasize important recommendation phrases
+        const emphasisPhrases = [
+          'recommend', 'suggest', 'consider', 'implement', 'optimize', 
+          'reduce', 'improve', 'increase', 'decrease', 'monitor',
+          'scale down', 'resize', 'consolidate', 'eliminate'
+        ];
+        
+        emphasisPhrases.forEach(phrase => {
+          const regex = new RegExp(`\\b(${phrase}\\w*)\\b`, 'gi');
+          html = html.replace(regex, '<strong>$1</strong>');
+        });
+        
+        p.innerHTML = html;
+      });
+    });
+  }
+</script>
 {% endblock %}

@@ -12,13 +12,13 @@ GRAFANA_COST_DASHBOARD_ID = os.environ.get('GRAFANA_COST_DASHBOARD_ID', '')
 # Gemini API settings
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-1.0-pro') # Default model
-GEMINI_API_URL_TEMPLATE = os.environ.get(
-    'GEMINI_API_URL_TEMPLATE',
-    'https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent' # Default URL template
-)
+# Corrected Gemini API Endpoint using v1beta and a standard model
+GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent"
 
-# Construct the final endpoint URL
-GEMINI_API_ENDPOINT = GEMINI_API_URL_TEMPLATE.format(model_name=GEMINI_MODEL_NAME)
+# Databricks SQL Warehouse settings
+DATABRICKS_SERVER_HOSTNAME = os.environ.get('DATABRICKS_SERVER_HOSTNAME', '')
+DATABRICKS_HTTP_PATH = os.environ.get('DATABRICKS_HTTP_PATH', '')
+DATABRICKS_ACCESS_TOKEN = os.environ.get('DATABRICKS_ACCESS_TOKEN', '')
 
 # Application settings
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
