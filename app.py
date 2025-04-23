@@ -7,11 +7,43 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta  # For month/year parsing
 from grafana_api import GrafanaAPI
-from config import DEBUG, SECRET_KEY, GEMINI_API_KEY, GEMINI_API_ENDPOINT
+from config import DEBUG, SECRET_KEY, GEMINI_API_KEY, GEMINI_API_ENDPOINT, USE_MCP, MCP_HOST, MCP_PORT, START_MCP_SERVER
 from databricks_client import execute_databricks_query
 import markdown  # Added for converting Markdown to HTML
 import tempfile
 import pdfkit  # Added for PDF generation
+import logging
+import threading
+from mcp_client import MCPClient  # Import the MCP client
+from grafana_mcp_server import start_mcp_server  # Import the MCP server starter from renamed module
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Add MCP-specific code to initialize and start the MCP server if enabled
+mcp_client = None
+
+if USE_MCP:
+    logger.info("MCP integration is enabled")
+    
+    # Initialize MCP client
+    mcp_client = MCPClient(host=MCP_HOST, port=MCP_PORT)
+    
+    # Start MCP server in a background thread if enabled
+    if START_MCP_SERVER:
+        def run_mcp_server():
+            logger.info(f"Starting MCP server on {MCP_HOST}:{MCP_PORT}")
+            start_mcp_server(host=MCP_HOST, port=MCP_PORT)
+            
+        mcp_thread = threading.Thread(target=run_mcp_server, daemon=True)
+        mcp_thread.start()
+        logger.info("MCP server thread started")
+else:
+    logger.info("MCP integration is disabled")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -167,6 +199,40 @@ Insights and Recommendations (referencing specific dashboard elements):"""
     except Exception as e:
         return f"An unexpected error occurred while processing Gemini response: {str(e)}"
 
+def get_insights_from_mcp(dashboard_data, query_results=None):
+    """Gets insights using the MCP server instead of direct Gemini API calls.
+    This function provides more structured analysis through the MCP protocol.
+    """
+    global mcp_client
+    
+    if not mcp_client:
+        logger.error("MCP client not initialized but get_insights_from_mcp was called")
+        return "Error: MCP client not initialized."
+    
+    try:
+        logger.info("Getting insights using MCP")
+        
+        if query_results:
+            # First analyze the query results
+            analysis_results = mcp_client.analyze_query_results(query_results)
+            
+            # Then generate recommendations based on both dashboard and analysis
+            recommendations = mcp_client.get_recommendations_from_analysis(
+                dashboard_data, analysis_results
+            )
+            
+            return recommendations
+        else:
+            # Get recommendations based only on dashboard structure
+            analysis = mcp_client.get_dashboard_analysis(dashboard_data)
+            return analysis.get("recommendations", "No recommendations available from MCP server.")
+    
+    except Exception as e:
+        logger.error(f"Error using MCP for analysis: {str(e)}", exc_info=True)
+        # Fall back to direct Gemini API if MCP fails
+        logger.info("Falling back to direct Gemini API due to MCP error")
+        return get_insights_from_gemini(dashboard_data, query_results)
+
 @app.route('/')
 def index():
     """Renders the main page with the URL input form."""
@@ -188,7 +254,7 @@ def analyze_url():
 
 @app.route('/dashboard/<uid>')
 def view_dashboard(uid):
-    """Fetches dashboard, executes Databricks queries, gets insights from Gemini, and displays them."""
+    """Fetches dashboard, executes Databricks queries, gets insights from AI, and displays them."""
     try:
         dashboard_details = grafana_api.get_dashboard(uid)
         dashboard_data = dashboard_details.get('dashboard', {})
@@ -237,14 +303,13 @@ def view_dashboard(uid):
                              interpolated_sql = interpolated_sql.replace("'$Interval'", f"'{interval_value}'") 
                              app.logger.info(f"Replaced '$Interval' with '{interval_value}'")
 
-                        # --- Refactored Variable Substitution ---
                         variable_matches = re.findall(r"\$\{(\w+)\}", interpolated_sql)
-                        replacements_to_make = {} # Store placeholder -> value mappings
-                        processed_conditions = set() # Track IN conditions already handled
+                        replacements_to_make = {}
+                        processed_conditions = set()
 
                         for var_name in variable_matches:
                             placeholder = f"${{{var_name}}}"
-                            if placeholder in replacements_to_make: # Already decided for this var
+                            if placeholder in replacements_to_make:
                                 continue 
 
                             if var_name in template_variables:
@@ -257,60 +322,46 @@ def view_dashboard(uid):
 
                                 if isinstance(value, list):
                                     if '$__all' in value and len(value) == 1:
-                                        # Check for `col IN (${var})` pattern
                                         pattern = rf"(\w+)\s+IN\s+\(\s*{re.escape(placeholder)}\s*\)"
                                         match = re.search(pattern, interpolated_sql)
                                         
-                                        # Ensure we haven't already processed this specific IN condition
                                         condition_key = match.group(0) if match else None
                                         if match and condition_key not in processed_conditions:
-                                            # Case 1: $__all in IN clause -> Replace whole condition with 1=1
                                             replacements_to_make[condition_key] = "1=1" 
                                             processed_conditions.add(condition_key)
                                             app.logger.info(f"Planning to replace condition '{condition_key}' with boolean '1=1' due to $__all.")
-                                            # Skip standard placeholder replacement for this var
-                                            replacements_to_make[placeholder] = None # Mark placeholder as handled by condition replacement
+                                            replacements_to_make[placeholder] = None
                                         elif placeholder not in replacements_to_make: 
-                                            # Case 2: $__all not in IN clause (or IN already handled) -> Replace placeholder with TRUE
                                             app.logger.warning(f"Variable {placeholder} is '$__all' but not in a simple IN clause (or IN already handled). Planning to replace placeholder with boolean \'TRUE\'.")
-                                            # Use TRUE instead of 1=1
                                             replacements_to_make[placeholder] = "TRUE"
                                             is_boolean_replacement = True
                                     else:
-                                        # Case 3: Multi-value list (not $__all)
                                         quoted_values = [f"'{str(v)}'" if isinstance(v, str) else str(v) for v in value if v != '$__all']
                                         replacement_value = ", ".join(quoted_values)
                                         if placeholder not in replacements_to_make:
                                              replacements_to_make[placeholder] = replacement_value
                                 else:
-                                    # Case 4: Single value
                                     replacement_value = f"'{str(value)}'" if isinstance(value, str) else str(value)
                                     if placeholder not in replacements_to_make:
                                          replacements_to_make[placeholder] = replacement_value
                                 
-                                # Log planned standard replacement (if not boolean or condition replacement)
                                 if replacement_value is not None and not is_boolean_replacement and placeholder in replacements_to_make and replacements_to_make[placeholder] is not None:
                                      app.logger.info(f"Planning to replace {placeholder} with {replacement_value[:50]}... (Standard)")
 
-                            else: # Variable not found in template_variables
+                            else:
                                 app.logger.warning(f"Variable {placeholder} found in query but not defined in dashboard templating. Placeholder will remain.")
-                                replacements_to_make[placeholder] = placeholder # Keep original placeholder
+                                replacements_to_make[placeholder] = placeholder
 
-                        # Apply the planned replacements
                         app.logger.info(f"Applying replacements: {replacements_to_make}")
-                        # Sort by key length descending to replace longer strings first (e.g., condition before placeholder)
                         for key in sorted(replacements_to_make, key=len, reverse=True):
                             value_to_replace = replacements_to_make[key]
-                            if value_to_replace is not None: # Check if replacement is needed (None means handled by condition)
+                            if value_to_replace is not None:
                                 interpolated_sql = interpolated_sql.replace(key, value_to_replace)
                                 app.logger.info(f"Applied replacement: '{key}' -> '{value_to_replace[:50]}...'")
                             else:
                                 app.logger.info(f"Skipping replacement for '{key}' as it was handled by condition replacement.")
-                        # --- End Refactored Variable Substitution ---
 
-                        # --- Log final SQL before execution ---
                         app.logger.info(f"Final interpolated SQL before execution: {interpolated_sql[:300]}...")
-                        # --- End Log final SQL ---
 
                         app.logger.info(f"Executing query for panel '{panel_title}' (Target {i}): {interpolated_sql[:200]}...")
                         result_key = f"{panel_title} - Query {i+1}"
@@ -325,15 +376,23 @@ def view_dashboard(uid):
                          app.logger.warning(f"No 'rawSql' found in target {i} for panel '{panel_title}'")
 
         if not databricks_results:
-            app.logger.warning("No Databricks query results obtained. Falling back to dashboard structure analysis for Gemini.")
-            insights = get_insights_from_gemini(dashboard_data, query_results=None)
+            app.logger.warning("No Databricks query results obtained. Falling back to dashboard structure analysis.")
+            if USE_MCP and mcp_client:
+                app.logger.info("Using MCP for dashboard structure analysis")
+                insights = get_insights_from_mcp(dashboard_data, query_results=None)
+            else:
+                app.logger.info("Using direct Gemini API for dashboard structure analysis")
+                insights = get_insights_from_gemini(dashboard_data, query_results=None)
         else:
-            app.logger.info(f"Sending {len(databricks_results)} query results to Gemini for analysis.")
-            insights = get_insights_from_gemini(dashboard_data, query_results=databricks_results)
+            app.logger.info(f"Sending {len(databricks_results)} query results for analysis.")
+            if USE_MCP and mcp_client:
+                app.logger.info("Using MCP for query results analysis")
+                insights = get_insights_from_mcp(dashboard_data, query_results=databricks_results)
+            else:
+                app.logger.info("Using direct Gemini API for query results analysis")
+                insights = get_insights_from_gemini(dashboard_data, query_results=databricks_results)
         
-        # Convert Markdown content to HTML
         if insights:
-            # Configure Markdown converter with extensions for tables and code formatting
             html_insights = markdown.markdown(
                 insights,
                 extensions=['tables', 'fenced_code', 'codehilite']
@@ -347,6 +406,7 @@ def view_dashboard(uid):
             'dashboard.html',
             dashboard_title=dashboard_title,
             insights=html_insights,
+            using_mcp=USE_MCP and mcp_client is not None
         )
     except Exception as e:
         app.logger.error(f"Error processing dashboard {uid}: {str(e)}", exc_info=True)

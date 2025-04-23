@@ -20,6 +20,12 @@ DATABRICKS_SERVER_HOSTNAME = os.environ.get('DATABRICKS_SERVER_HOSTNAME', '')
 DATABRICKS_HTTP_PATH = os.environ.get('DATABRICKS_HTTP_PATH', '')
 DATABRICKS_ACCESS_TOKEN = os.environ.get('DATABRICKS_ACCESS_TOKEN', '')
 
+# MCP Server settings
+USE_MCP = os.environ.get('USE_MCP', 'True').lower() == 'true'
+MCP_HOST = os.environ.get('MCP_HOST', 'localhost')
+MCP_PORT = int(os.environ.get('MCP_PORT', '8090'))
+START_MCP_SERVER = os.environ.get('START_MCP_SERVER', 'True').lower() == 'true'
+
 # Application settings
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')

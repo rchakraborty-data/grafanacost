@@ -22,6 +22,71 @@ Grafana Cost Analyzer is a web application that helps data engineering and DevOp
 - **Interactive UI**: Modern, responsive interface with intuitive visualization
 - **PDF Reports**: Export analysis results as professional PDF reports
 - **Categorized Recommendations**: Recommendations are automatically prioritized and categorized
+- **Model Context Protocol (MCP)**: Enhanced AI reasoning through structured action chains
+
+## Model Context Protocol (MCP) Integration
+
+The Grafana Cost Analyzer leverages the Model Context Protocol (MCP) to provide more structured and sophisticated AI analysis capabilities. MCP enables AI models to reason more effectively by breaking down complex tasks into discrete actions with specific contexts.
+
+```
+┌─────────────────────────────────┐      ┌─────────────────────────────────┐
+│    Grafana Cost Web App         │      │     Model Context Protocol      │
+│                                 │      │                                 │
+│  ┌─────────┐     ┌─────────┐    │      │  ┌─────────┐     ┌─────────┐    │
+│  │ Request │     │ Response│    │      │  │ Action  │     │ Action  │    │
+│  │ Handler ├────►│ Builder │◄───┼──────┼──┤ Results │◄────┤ Handler │    │
+│  └─────────┘     └─────────┘    │      │  └─────────┘     └─────────┘    │
+│        │                        │      │        ▲               ▲        │
+└────────┼────────────────────────┘      └────────┼───────────────┼────────┘
+         │                                         │               │
+         │                                         │               │
+         ▼                                         │               │
+┌─────────────────┐                     ┌──────────┴───────┐      │
+│  MCP Client     │                     │                  │      │
+│                 │                     │   AI Analysis    │      │
+│  ┌──────────┐   │   ┌──────────────┐  │    Engine       │      │
+│  │Dashboard ├───┼──►│get_dashboard │──┼─────────────────┼──────┘
+│  │ Analysis │   │   └──────────────┘  │  ┌────────────┐ │
+│  └──────────┘   │                     │  │   Gemini   │ │
+│                 │   ┌──────────────┐  │  │    API     │ │
+│  ┌──────────┐   │   │execute_query │──┼─►│            │ │
+│  │  Query   ├───┼──►│              │  │  │            │ │
+│  │ Analysis │   │   └──────────────┘  │  └────────────┘ │
+│  └──────────┘   │                     │                  │
+│                 │   ┌──────────────┐  │  ┌────────────┐  │
+│  ┌──────────┐   │   │analyze_cost_ │  │  │Recommendations│
+│  │Cost Data ├───┼──►│   patterns   │──┼─►│  Generator  │  │
+│  │ Analysis │   │   └──────────────┘  │  └────────────┘  │
+│  └──────────┘   │                     │                  │
+└─────────────────┘                     └──────────────────┘
+```
+
+### How MCP Works in Grafana Cost Analyzer
+
+1. **Structured Actions**: The MCP server provides distinct actions like:
+   - `get_dashboard`: Fetches dashboard structure
+   - `execute_query`: Runs SQL queries against Databricks
+   - `analyze_cost_patterns`: Analyzes cost data for patterns
+   - `generate_recommendations`: Creates tailored recommendations
+
+2. **Enhanced Context Management**: MCP maintains context throughout the analysis chain:
+   - Dashboard structure is analyzed to understand query relationships
+   - Query results are analyzed in the context of overall usage patterns
+   - Recommendations are generated with knowledge of both dashboard structure and query results
+
+3. **Multithreaded Operation**: The MCP server runs in a background thread, allowing asynchronous AI processing without blocking the main application.
+
+4. **Graceful Fallback**: If MCP encounters issues, the system automatically falls back to direct Gemini API calls.
+
+5. **UI Integration**: The user interface displays an MCP badge when analysis is being performed through the Model Context Protocol.
+
+### Benefits of MCP
+
+- **More Sophisticated Analysis**: Breaking down analysis into discrete actions enables more complex reasoning
+- **Better Error Handling**: Each action has specific error handling, improving reliability
+- **Enhanced Performance**: Parallel processing of actions improves response time
+- **Extensibility**: New actions can be easily added to enhance capabilities
+- **Multi-Model Support**: The architecture can work with different AI models beyond just Gemini
 
 ## Installation
 

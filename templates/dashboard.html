@@ -12,7 +12,12 @@
   <div class="row align-items-center">
     <div class="col-md-8">
       <h1 class="section-heading mb-2">{{ dashboard_title }}</h1>
-      <p class="text-secondary">Cost Analysis Report and Optimization Recommendations</p>
+      <p class="text-secondary">
+        Cost Analysis Report and Optimization Recommendations
+        {% if using_mcp %}
+          <span class="badge bg-info ms-2" title="Analysis powered by Model Context Protocol">MCP</span>
+        {% endif %}
+      </p>
     </div>
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
       <div class="btn-group">
