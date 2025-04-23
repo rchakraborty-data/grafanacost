@@ -145,7 +145,7 @@
         // Configure PDF options
         const opt = {
           margin:       [0.5, 0.5, 0.5, 0.5],
-          filename:     '${pdfTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-cost-analysis.pdf',
+          filename:     `${pdfTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-cost-analysis.pdf`,
           image:        { type: 'jpeg', quality: 0.98 },
           html2canvas:  { scale: 2, logging: false, dpi: 192, letterRendering: true },
           jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
