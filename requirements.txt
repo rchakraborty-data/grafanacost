@@ -1,5 +1,9 @@
 Flask
 requests
-python-dotenv
 pandas
-plotly==5.14.1
+databricks-sql-connector
+python-dotenv
+dateutils
+tabulate # Added for pandas.to_markdown
+markdown # Added for converting Markdown to HTML
+pdfkit # Added for PDF generation (more macOS friendly)
