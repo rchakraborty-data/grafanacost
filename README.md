@@ -24,6 +24,183 @@ Grafana Cost Analyzer is a web application that helps data engineering and DevOp
 - **Categorized Recommendations**: Recommendations are automatically prioritized and categorized
 - **Model Context Protocol (MCP)**: Enhanced AI reasoning through structured action chains
 
+## System Architecture
+
+The Grafana Cost Analyzer follows a modular architecture designed for flexibility, scalability, and maintainability. The system is composed of several key components that work together to provide comprehensive cost analysis and recommendations.
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                        Grafana Cost Analyzer Architecture                  │
+└───────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌───────────────────┐  HTTP    ┌───────────────────┐  API    ┌───────────────┐
+│    Web Browser    │◄────────►│    Flask App      │◄───────►│ Grafana API   │
+│                   │          │    (app.py)       │         │               │
+└───────────────────┘          └────────┬──────────┘         └───────────────┘
+                                        │  
+                                        │ Query  
+                  ┌─────────────────────┼─────────────────────┐
+                  │                     │                     │
+                  ▼                     ▼                     ▼
+┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────────────┐
+│  Databricks SQL   │  │   AI Analysis     │  │  Report Generation            │
+│  (Query Execution)│  │   (Gemini API)    │  │  (PDF & Interactive HTML)     │
+└───────────────────┘  └───────────────────┘  └───────────────────────────────┘
+                               │
+                  ┌────────────┴────────────┐
+                  │                         │
+                  ▼                         ▼
+┌─────────────────────────┐    ┌─────────────────────────┐
+│ Direct Gemini API Mode  │    │ Model Context Protocol  │
+│ (Synchronous Analysis)  │    │ (MCP) Mode              │
+└─────────────────────────┘    └─────────────────────────┘
+```
+
+### Core Components
+
+1. **Flask Web Application** (app.py)
+   - Core component that handles HTTP requests, manages sessions, and coordinates data flow
+   - Renders HTML templates and serves static assets
+   - Manages asynchronous analysis tasks and state management
+   - Implements error handling and logging
+
+2. **Grafana API Interface** (grafana_api.py)
+   - Provides a client for Grafana's REST API
+   - Retrieves dashboard definitions, panel configurations, and query details
+   - Handles authentication and error management
+   - Supports both HTTP and GraphQL API interactions
+
+3. **Databricks Client** (databricks_client.py)
+   - Executes SQL queries against Databricks SQL warehouses
+   - Manages connections and error handling
+   - Processes query results into Pandas DataFrames for analysis
+   - Handles connection pooling and query timeout management
+
+4. **AI Analysis Engines**
+   - **Direct Gemini API Integration**
+     - Sends data directly to Google's Gemini API
+     - Processes responses and formats them for display
+   - **Model Context Protocol (MCP)**
+     - Structured approach to AI reasoning with discrete actions
+     - Background MCP server for enhanced multi-step analysis
+     - Parallel processing capabilities for complex analyses
+
+5. **Report Generation System**
+   - **HTML Report Generator**
+     - Converts Markdown recommendations to HTML
+     - Applies syntax highlighting for code blocks
+   - **PDF Report Generator**
+     - Transforms HTML content to professionally formatted PDFs
+     - Implements advanced styling with ReportLab
+     - Supports tables, lists, metadata blocks, and section formatting
+
+## Data Flow Diagram
+
+The following diagram illustrates the flow of data through the system when analyzing a dashboard:
+
+```
+┌─────────────┐         ┌─────────────┐         ┌────────────────┐
+│  User Input │         │  Grafana    │         │   Databricks   │
+│  Dashboard  │─────────►   API       │◄────────┤   SQL Engine   │
+│     URL     │         │             │         │                │
+└─────┬───────┘         └──────┬──────┘         └───────┬────────┘
+      │                        │                        │
+      │                        │                        │
+      ▼                        ▼                        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│                      Flask Application                          │
+│                                                                 │
+│   ┌───────────┐     ┌───────────┐      ┌──────────────────┐    │
+│   │ Dashboard │     │  Query    │      │ Results Analysis │    │
+│   │ Retrieval │────►│ Execution │─────►│ & Recommendations│    │
+│   └───────────┘     └───────────┘      └──────────┬───────┘    │
+│                                                   │            │
+└───────────────────────────────────────────────────┼────────────┘
+                                                    │
+                    ┌─────────────────────┐         │
+                    │                     │         │
+                    ▼                     ▼         │
+            ┌──────────────┐     ┌──────────────┐   │
+            │              │     │              │   │
+            │ Direct API   │     │ MCP Server   │   │
+            │ (Gemini)     │     │ Protocol     │   │
+            │              │     │              │   │
+            └──────┬───────┘     └──────┬───────┘   │
+                   │                    │           │
+                   └────────────┬───────┘           │
+                                │                   │
+                                ▼                   │
+                      ┌────────────────┐            │
+                      │                │            │
+                      │  AI Analysis   │◄───────────┘
+                      │  Generation    │
+                      │                │
+                      └───────┬────────┘
+                              │
+                              ▼
+                    ┌───────────────────┐          ┌───────────────────┐
+                    │                   │          │                   │
+                    │  HTML Response    │────────► │  PDF Generation   │
+                    │                   │          │                   │
+                    └───────────────────┘          └───────────────────┘
+```
+
+## PDF Generation System
+
+The PDF generation system converts HTML analysis into professionally formatted PDF reports with enhanced readability and visual appeal.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PDF Generation Architecture                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────┐            ┌─────────────────┐            ┌─────────────────┐
+│                 │            │                 │            │                 │
+│  HTML Content   │────────────►  HTML Parser    │────────────►  Content        │
+│  from Analysis  │            │  & Extractor    │            │  Structuring    │
+│                 │            │                 │            │                 │
+└─────────────────┘            └─────────────────┘            └────────┬────────┘
+                                                                       │
+                                                                       │
+┌─────────────────┐            ┌─────────────────┐            ┌────────▼────────┐
+│                 │            │                 │            │                 │
+│  PDF Document   │◄───────────┤  Style          │◄───────────┤  Content        │
+│  Generation     │            │  Application    │            │  Organization   │
+│                 │            │                 │            │                 │
+└─────────────────┘            └─────────────────┘            └─────────────────┘
+```
+
+### PDF Generation Features
+
+The PDF generator creates visually appealing reports with:
+
+1. **Professional Formatting**
+   - Clean hierarchical structure with consistent styling
+   - Color-coded sections based on priority and importance
+   - Proper page breaks and content flow management
+   - Embedded metadata with visual emphasis for key metrics
+
+2. **Content Organization**
+   - Title page with dashboard information and generation date
+   - Table of contents with hyperlinks to sections
+   - Properly formatted code blocks with syntax highlighting
+   - Structured recommendations with implementation steps
+
+3. **Visual Elements**
+   - Color-coded priority indicators
+   - Styled metadata blocks for better information hierarchy
+   - Properly formatted tables with alternating row colors
+   - Bulleted and numbered lists with correct indentation
+
+4. **Technical Implementation**
+   - HTML parsing to extract structured content
+   - ReportLab library for PDF generation
+   - Custom paragraph styles for different content types
+   - Advanced table formatting with cell styling
+
 ## Model Context Protocol (MCP) Integration
 
 The Grafana Cost Analyzer leverages the Model Context Protocol (MCP) to provide more structured and sophisticated AI analysis capabilities. MCP enables AI models to reason more effectively by breaking down complex tasks into discrete actions with specific contexts.
@@ -80,13 +257,56 @@ The Grafana Cost Analyzer leverages the Model Context Protocol (MCP) to provide 
 
 5. **UI Integration**: The user interface displays an MCP badge when analysis is being performed through the Model Context Protocol.
 
-### Benefits of MCP
+## Query Processing System
 
-- **More Sophisticated Analysis**: Breaking down analysis into discrete actions enables more complex reasoning
-- **Better Error Handling**: Each action has specific error handling, improving reliability
-- **Enhanced Performance**: Parallel processing of actions improves response time
-- **Extensibility**: New actions can be easily added to enhance capabilities
-- **Multi-Model Support**: The architecture can work with different AI models beyond just Gemini
+The Query Processing System is responsible for handling Grafana dashboard queries, interpolating variables, and executing them against Databricks SQL:
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                   Query Processing Workflow                         │
+└────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌───────────────────┐    ┌─────────────────┐    ┌───────────────────┐
+│                   │    │                 │    │                   │
+│  Extract SQL      │───►│ Parse Template  │───►│ Process Time      │
+│  from Dashboard   │    │ Variables       │    │ Range Variables   │
+│                   │    │                 │    │                   │
+└───────────────────┘    └─────────────────┘    └─────────┬─────────┘
+                                                          │
+                                                          ▼
+┌───────────────────┐    ┌─────────────────┐    ┌───────────────────┐
+│                   │    │                 │    │                   │
+│  Execute Query    │◄───┤ Replace Special │◄───┤ Handle Multi-     │
+│  Against          │    │ Variables       │    │ Value Variables   │
+│  Databricks SQL   │    │                 │    │                   │
+└─────────┬─────────┘    └─────────────────┘    └───────────────────┘
+          │
+          ▼
+┌───────────────────┐
+│                   │
+│  Process Query    │
+│  Results          │
+│                   │
+└───────────────────┘
+```
+
+Key components of the query processing system:
+
+1. **Variable Interpolation Engine**
+   - Handles Grafana's complex template variable syntax
+   - Supports multi-value variables and special values like `$__all`
+   - Processes time range variables with absolute and relative formats
+
+2. **Query Transformation Pipeline**
+   - Parses and extracts SQL from dashboard panels
+   - Handles complex SQL transformations with variable substitution
+   - Manages SQL query validation and error handling
+
+3. **Result Processing**
+   - Converts query results to structured data formats
+   - Generates statistical summaries for numerical columns
+   - Prepares data for AI analysis and visualization
 
 ## Installation
 
@@ -160,8 +380,12 @@ The application can be configured through environment variables or the `config.p
 - `GEMINI_API_KEY`: Google Gemini API key
 - `GEMINI_API_ENDPOINT`: Endpoint for the Gemini API
 - `DEBUG`: Enable/disable debug mode (True/False)
+- `USE_MCP`: Enable Model Context Protocol (True/False)
+- `MCP_HOST`: Host for MCP server (default: localhost)
+- `MCP_PORT`: Port for MCP server (default: 8080)
+- `START_MCP_SERVER`: Auto-start MCP server (True/False)
 
-## Project Structure
+## Detailed Project Structure
 
 ```
 grafanacost/
@@ -169,12 +393,22 @@ grafanacost/
 ├── config.py               # Configuration handling
 ├── databricks_client.py    # Databricks SQL connection
 ├── grafana_api.py          # Grafana API interaction
+├── grafana_graphql.py      # GraphQL API support for Grafana
+├── grafana_mcp_server.py   # MCP server implementation
+├── mcp_client.py           # Client for MCP interactions
 ├── requirements.txt        # Python dependencies
 ├── run_app.sh              # Application startup script
 ├── run_tests.sh            # Test runner script
-├── test_e2e.py             # End-to-end tests
+│
+├── tests/
+│   ├── test_e2e.py         # End-to-end tests
+│   ├── test_gemini_api.py  # Tests for Gemini API integration
+│   └── test_pdf_generation.py # Tests for PDF generation
+│
 ├── static/                 # Static assets
-│   └── style.css           # CSS styles
+│   ├── style.css           # CSS styles
+│   └── downloads/          # Folder for generated PDFs
+│
 └── templates/              # HTML templates
     ├── base.html           # Base template
     ├── dashboard.html      # Dashboard analysis page
@@ -184,15 +418,37 @@ grafanacost/
     └── index_okta.html     # Okta integration for home page
 ```
 
-## How It Works
+## Component Interactions
 
-1. **Dashboard Retrieval**: The application fetches the dashboard JSON from Grafana using the API
-2. **Query Extraction**: SQL queries are extracted from dashboard panels
-3. **Variable Interpolation**: Grafana template variables are processed and interpolated
-4. **Data Retrieval**: Queries are executed against Databricks SQL warehouse
-5. **AI Analysis**: Results are sent to Google's Gemini API for analysis
-6. **Visualization**: Insights and recommendations are displayed with intuitive formatting
-7. **Report Generation**: Analysis can be exported as a PDF report
+The following diagram shows how the key components interact during the dashboard analysis process:
+
+```
+┌─────────────────────┐     ┌─────────────────────┐
+│                     │     │                     │
+│  Web Browser        │◄───►│  Flask App (app.py) │
+│                     │     │                     │
+└─────────────────────┘     └──────────┬──────────┘
+                                       │
+                 ┌─────────────────────┼─────────────────────┐
+                 │                     │                     │
+                 ▼                     ▼                     ▼
+    ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
+    │                     │ │                     │ │                     │
+    │  Grafana API        │ │  Databricks Client  │ │  Gemini API         │
+    │  (grafana_api.py)   │ │  (databricks_       │ │  Integration        │
+    │                     │ │   client.py)        │ │                     │
+    └─────────────────────┘ └─────────────────────┘ └─────────────────────┘
+              │                       │                        │
+              └───────────────────────┼────────────────────────┘
+                                     │
+                                     ▼
+                          ┌─────────────────────┐
+                          │                     │
+                          │  MCP Server/Client  │
+                          │  (Optional)         │
+                          │                     │
+                          └─────────────────────┘
+```
 
 ## Development
 
@@ -220,6 +476,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Grafana for their excellent dashboarding platform
 - Databricks for their SQL warehouse capabilities
 - Google Gemini for the AI analysis capabilities
+- ReportLab for the PDF generation library
 
 ## Contact
 
