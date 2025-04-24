@@ -4,13 +4,11 @@ MCP Client for Grafana Cost Analyzer
 This module provides a client interface to interact with the MCP server
 for cost analysis and recommendations.
 """
-
-import json
-import logging
-import requests
-import pandas as pd
-import datetime
 from typing import Dict, Any, Optional, List, Union
+import requests
+import logging
+import json
+import datetime
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -86,21 +84,121 @@ class MCPClient:
             logger.error(f"Error communicating with MCP server: {str(e)}")
             raise Exception(f"MCP communication error: {str(e)}")
     
-    def get_dashboard_analysis(self, uid: str) -> Dict[str, Any]:
+    def execute_graphql(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Execute a GraphQL query against the MCP server.
+        
+        Args:
+            query: The GraphQL query string
+            variables: Optional variables for the GraphQL query
+            
+        Returns:
+            The GraphQL response data
+            
+        Raises:
+            Exception: If the GraphQL execution fails
+        """
+        params = {
+            "query": query,
+        }
+        
+        if variables:
+            params["variables"] = variables
+            
+        try:
+            logger.info("Executing GraphQL query through MCP")
+            return self.execute_action("graphql", params)
+        except Exception as e:
+            logger.error(f"Error executing GraphQL query: {str(e)}")
+            raise Exception(f"GraphQL execution failed: {str(e)}")
+    
+    def get_cost_metrics(self, dashboard_uid: Optional[str] = None) -> Dict[str, Any]:
+        """Get cost metrics using GraphQL.
+        
+        Args:
+            dashboard_uid: Optional dashboard UID to filter metrics
+            
+        Returns:
+            Dictionary containing cost metrics
+        """
+        query = """
+        query GetCostMetrics($dashboardUid: String) {
+            costMetrics(dashboardUid: $dashboardUid) {
+                id
+                name
+                value
+                unit
+                trend
+                comparisonPeriod
+            }
+        }
+        """
+        
+        variables = {}
+        if dashboard_uid:
+            variables["dashboardUid"] = dashboard_uid
+            
+        try:
+            result = self.execute_graphql(query, variables)
+            return result.get("costMetrics", [])
+        except Exception as e:
+            logger.error(f"Error getting cost metrics: {str(e)}")
+            raise
+    
+    def get_cost_trend(self, metric_id: str, period: str = "30d") -> Dict[str, Any]:
+        """Get cost trend data using GraphQL.
+        
+        Args:
+            metric_id: The ID of the cost metric
+            period: Time period for trend analysis (e.g., "7d", "30d", "90d")
+            
+        Returns:
+            Dictionary containing trend data
+        """
+        query = """
+        query GetCostTrend($metricId: String!, $period: String) {
+            costTrend(metricId: $metricId, period: $period) {
+                metricId
+                trendData {
+                    date
+                    value
+                }
+                changePercentage
+                anomalies {
+                    date
+                    value
+                    description
+                }
+            }
+        }
+        """
+        
+        variables = {
+            "metricId": metric_id,
+            "period": period
+        }
+            
+        try:
+            result = self.execute_graphql(query, variables)
+            return result.get("costTrend", {})
+        except Exception as e:
+            logger.error(f"Error getting cost trend: {str(e)}")
+            raise
+    
+    def get_dashboard_analysis(self, dashboard_data: Dict[str, Any]) -> Dict[str, Any]:
         """Get a complete analysis of a dashboard.
         
         This is a convenience method that chains multiple MCP actions
         to provide a complete dashboard analysis.
         
         Args:
-            uid: The unique identifier of the Grafana dashboard
+            dashboard_data: The Grafana dashboard structure
             
         Returns:
             Dictionary containing the analysis results
         """
         try:
             # Step 1: Retrieve dashboard
-            dashboard_data = self.execute_action("get_dashboard", {"uid": uid})
+            dashboard_data = self.execute_action("get_dashboard", {"data": dashboard_data})
             
             # Step 2: Generate recommendations based on dashboard structure
             recommendations = self.execute_action(
@@ -132,17 +230,10 @@ class MCPClient:
             serializable_results = {}
             
             for key, value in results.items():
-                if isinstance(value, pd.DataFrame):
-                    # Convert DataFrame to a dictionary representation
-                    serializable_results[key] = {
-                        "type": "dataframe",
-                        "rows": value.shape[0],
-                        "columns": list(value.columns),
-                        "data": value.to_dict(orient="records")
-                    }
-                    logger.info(f"Converted DataFrame '{key}' with {value.shape[0]} rows to serializable format")
+                if hasattr(value, 'to_dict'):
+                    # Convert pandas DataFrame to dictionary
+                    serializable_results[key] = value.to_dict(orient='records')
                 else:
-                    # Keep non-DataFrame values as they are
                     serializable_results[key] = value
             
             # Analyze cost patterns using serializable data
@@ -185,4 +276,225 @@ class MCPClient:
             
         except Exception as e:
             logger.error(f"Error getting recommendations: {str(e)}")
+            raise
+    
+    # Extended specialized cost analysis methods
+    
+    def get_compute_cost_metrics(self, resource_type: Optional[str] = None, period: str = "30d") -> Dict[str, Any]:
+        """Get specialized compute cost metrics using GraphQL.
+        
+        Args:
+            resource_type: Optional resource type filter (e.g., "VM", "Container", "Serverless")
+            period: Time period for metrics (e.g., "7d", "30d", "90d")
+            
+        Returns:
+            Dictionary containing compute cost metrics
+        """
+        query = """
+        query GetComputeCostMetrics($resourceType: String, $period: String) {
+            computeCostMetrics(resourceType: $resourceType, period: $period) {
+                id
+                name
+                value
+                unit
+                resourceType
+                utilizationPercentage
+                trendPercentage
+                instanceCount
+                recommendations {
+                    id
+                    description
+                    potentialSavings
+                    confidence
+                }
+            }
+        }
+        """
+        
+        variables = {"period": period}
+        if resource_type:
+            variables["resourceType"] = resource_type
+            
+        try:
+            result = self.execute_graphql(query, variables)
+            return result.get("computeCostMetrics", [])
+        except Exception as e:
+            logger.error(f"Error getting compute cost metrics: {str(e)}")
+            raise
+    
+    def get_storage_cost_metrics(self, storage_type: Optional[str] = None, period: str = "30d") -> Dict[str, Any]:
+        """Get specialized storage cost metrics using GraphQL.
+        
+        Args:
+            storage_type: Optional storage type filter (e.g., "Block", "Object", "File")
+            period: Time period for metrics (e.g., "7d", "30d", "90d")
+            
+        Returns:
+            Dictionary containing storage cost metrics
+        """
+        query = """
+        query GetStorageCostMetrics($storageType: String, $period: String) {
+            storageCostMetrics(storageType: $storageType, period: $period) {
+                id
+                name
+                value
+                unit
+                storageType
+                capacityGB
+                usedCapacityGB
+                utilizationPercentage
+                costPerGB
+                recommendations {
+                    id
+                    description
+                    potentialSavings
+                    confidence
+                }
+            }
+        }
+        """
+        
+        variables = {"period": period}
+        if storage_type:
+            variables["storageType"] = storage_type
+            
+        try:
+            result = self.execute_graphql(query, variables)
+            return result.get("storageCostMetrics", [])
+        except Exception as e:
+            logger.error(f"Error getting storage cost metrics: {str(e)}")
+            raise
+    
+    def get_network_cost_metrics(self, traffic_type: Optional[str] = None, period: str = "30d") -> Dict[str, Any]:
+        """Get specialized network cost metrics using GraphQL.
+        
+        Args:
+            traffic_type: Optional traffic type filter (e.g., "Ingress", "Egress", "Inter-zone")
+            period: Time period for metrics (e.g., "7d", "30d", "90d")
+            
+        Returns:
+            Dictionary containing network cost metrics
+        """
+        query = """
+        query GetNetworkCostMetrics($trafficType: String, $period: String) {
+            networkCostMetrics(trafficType: $trafficType, period: $period) {
+                id
+                name
+                value
+                unit
+                trafficType
+                dataTransferredGB
+                costPerGB
+                trendPercentage
+                recommendations {
+                    id
+                    description
+                    potentialSavings
+                    confidence
+                }
+            }
+        }
+        """
+        
+        variables = {"period": period}
+        if traffic_type:
+            variables["trafficType"] = traffic_type
+            
+        try:
+            result = self.execute_graphql(query, variables)
+            return result.get("networkCostMetrics", [])
+        except Exception as e:
+            logger.error(f"Error getting network cost metrics: {str(e)}")
+            raise
+    
+    def get_database_cost_metrics(self, database_type: Optional[str] = None, period: str = "30d") -> Dict[str, Any]:
+        """Get specialized database cost metrics using GraphQL.
+        
+        Args:
+            database_type: Optional database type filter (e.g., "SQL", "NoSQL", "Data Warehouse")
+            period: Time period for metrics (e.g., "7d", "30d", "90d")
+            
+        Returns:
+            Dictionary containing database cost metrics
+        """
+        query = """
+        query GetDatabaseCostMetrics($databaseType: String, $period: String) {
+            databaseCostMetrics(databaseType: $databaseType, period: $period) {
+                id
+                name
+                value
+                unit
+                databaseType
+                instanceCount
+                provisionedIOPS
+                storageSize
+                utilizationPercentage
+                queryPerformance
+                costEfficiency
+                recommendations {
+                    id
+                    description
+                    potentialSavings
+                    confidence
+                    implementationComplexity
+                }
+            }
+        }
+        """
+        
+        variables = {"period": period}
+        if database_type:
+            variables["databaseType"] = database_type
+            
+        try:
+            result = self.execute_graphql(query, variables)
+            return result.get("databaseCostMetrics", [])
+        except Exception as e:
+            logger.error(f"Error getting database cost metrics: {str(e)}")
+            raise
+    
+    def get_serverless_cost_metrics(self, function_type: Optional[str] = None, period: str = "30d") -> Dict[str, Any]:
+        """Get specialized serverless cost metrics using GraphQL.
+        
+        Args:
+            function_type: Optional function type filter (e.g., "Lambda", "Azure Functions", "Cloud Run")
+            period: Time period for metrics (e.g., "7d", "30d", "90d")
+            
+        Returns:
+            Dictionary containing serverless cost metrics
+        """
+        query = """
+        query GetServerlessCostMetrics($functionType: String, $period: String) {
+            serverlessCostMetrics(functionType: $functionType, period: $period) {
+                id
+                name
+                value
+                unit
+                functionType
+                invocationCount
+                executionTime
+                memoryUsage
+                coldStarts
+                costPerInvocation
+                costPerGBSecond
+                recommendations {
+                    id
+                    description
+                    potentialSavings
+                    confidence
+                    implementationComplexity
+                }
+            }
+        }
+        """
+        
+        variables = {"period": period}
+        if function_type:
+            variables["functionType"] = function_type
+            
+        try:
+            result = self.execute_graphql(query, variables)
+            return result.get("serverlessCostMetrics", [])
+        except Exception as e:
+            logger.error(f"Error getting serverless cost metrics: {str(e)}")
             raise

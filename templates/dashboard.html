@@ -8,6 +8,17 @@
 {% endblock %}
 
 {% block content %}
+<script>
+  // Show loading modal when the page is processing a new dashboard
+  document.addEventListener('DOMContentLoaded', function() {
+    // Only show if the insights aren't already loaded
+    {% if not insights %}
+      var loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+      loadingModal.show();
+    {% endif %}
+  });
+</script>
+
 <div class="analysis-header mb-4">
   <div class="row align-items-center">
     <div class="col-md-8">
@@ -21,7 +32,7 @@
     </div>
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
       <div class="btn-group">
-        <a href="#" class="btn btn-success me-2" id="downloadPdfButton">
+        <a href="{{ url_for('download_pdf_report', uid=request.view_args.uid) }}" class="btn btn-success me-2">
           <i class="fas fa-file-pdf me-2"></i> Download PDF Report
         </a>
         <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
@@ -65,6 +76,49 @@
     </div>
   </div>
 {% endif %}
+
+<!-- Email Modal -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="emailModalLabel">Generate PDF Report</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info mb-0">
+          <i class="fas fa-info-circle me-2"></i> Email functionality has been disabled. Please use the Download PDF button instead.
+        </div>
+        <div class="text-center mt-3">
+          <a href="{{ url_for('download_pdf_report', uid=request.view_args.uid) }}" class="btn btn-primary">
+            <i class="fas fa-download me-2"></i> Download PDF Report
+          </a>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body text-center py-4">
+        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <h5 class="mb-3">Analyzing Dashboard</h5>
+        <p class="text-muted">This might take a minute or two as we process the data and generate insights...</p>
+        <div class="progress mt-3">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -84,6 +138,12 @@
     
     // Format recommendations with priority labels
     enhanceRecommendations();
+    
+    // Check if we need to show the email modal automatically (after an email was sent)
+    {% if email_status %}
+      const emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
+      emailModal.show();
+    {% endif %}
     
     // Add PDF download functionality using client-side html2pdf.js
     const pdfButton = document.getElementById('downloadPdfButton');

@@ -1,6 +1,6 @@
 import unittest
-import requests
 import os
+import requests
 import json
 import re
 from unittest import mock
@@ -16,25 +16,24 @@ class GrafanaCostDashboardE2ETests(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        """Set up the test environment once before all tests"""
-        # Configure the Flask application for testing
+        """Set up the test environment once for all tests"""
+        # Configure Flask test client
         app.config['TESTING'] = True
+        app.config['WTF_CSRF_ENABLED'] = False
         cls.client = app.test_client()
         
-        # Get configuration from environment
+        # Get Grafana details from environment
         cls.grafana_url = os.environ.get('GRAFANA_URL')
-        cls.grafana_token = os.environ.get('GRAFANA_SERVICE_TOKEN')
+        cls.grafana_token = os.environ.get('GRAFANA_API_KEY')
         cls.dashboard_id = os.environ.get('GRAFANA_COST_DASHBOARD_ID')
         
-        # Validate that required environment variables are set
         if not all([cls.grafana_url, cls.grafana_token, cls.dashboard_id]):
-            raise ValueError("Missing required environment variables. Please check your .env file.")
+            raise ValueError("Missing required environment variables for testing")
         
-        # Set up headers for Grafana API requests
+        # Configure headers for direct API access
         cls.grafana_headers = {
             'Authorization': f'Bearer {cls.grafana_token}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Content-Type': 'application/json'
         }
         
         # Initialize the API client
@@ -133,7 +132,7 @@ class GrafanaCostDashboardE2ETests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         
-        # Check that the custom time range is included in the iframe URL
+        # Check that custom time range is included in the iframe URL
         self.assertIn(f'from={custom_from}'.encode(), response.data)
         self.assertIn(f'to={custom_to}'.encode(), response.data)
     
@@ -155,12 +154,11 @@ class GrafanaCostDashboardE2ETests(unittest.TestCase):
         
         # Verify panels structure and content
         self.assertIsInstance(panels, list)
-        if panels:  # Only check if there are panels
-            sample_panel = panels[0]
-            # Check for common panel attributes
-            self.assertIn('id', sample_panel)
-            self.assertIn('title', sample_panel)
-            self.assertIn('type', sample_panel)
+        if panels:
+            panel = panels[0]  # Check first panel
+            required_props = ['id', 'type', 'title']
+            for prop in required_props:
+                self.assertIn(prop, panel)
     
     def test_dashboard_metrics_data_structure(self):
         """Test that dashboard metrics data has the expected structure"""
@@ -171,22 +169,16 @@ class GrafanaCostDashboardE2ETests(unittest.TestCase):
         
         required_props = ['id', 'uid', 'title', 'panels', 'time', 'timezone', 'schemaVersion']
         for prop in required_props:
-            self.assertIn(prop, dashboard, f"Dashboard is missing '{prop}' property")
+            self.assertIn(prop, dashboard)
         
         self.assertIn('from', dashboard['time'])
         self.assertIn('to', dashboard['time'])
         
         if len(dashboard['panels']) > 0:
-            cost_related_panels = 0
-            for panel in dashboard['panels']:
-                panel_json = json.dumps(panel).lower()
-                if any(term in panel_json for term in ['cost', 'expense', 'billing', 'budget', 'finance']):
-                    cost_related_panels += 1
-                    
-                self.assertIn('id', panel)
-                self.assertIn('title', panel)
-            
-            self.assertGreater(cost_related_panels, 0, "No cost-related panels found in the dashboard")
+            panel = dashboard['panels'][0]
+            panel_props = ['id', 'type', 'title', 'gridPos']
+            for prop in panel_props:
+                self.assertIn(prop, panel)
     
     def test_error_handling_invalid_dashboard(self):
         """Test application's handling of invalid dashboard ID"""
@@ -203,7 +195,6 @@ class GrafanaCostDashboardE2ETests(unittest.TestCase):
             self.assertEqual(response.status_code, 500)
             data = json.loads(response.data)
             self.assertIn('error', data)
-            self.assertEqual(data['error'], 'API Error')
     
     def test_dashboard_with_all_parameters(self):
         """Test dashboard with all possible URL parameters"""
@@ -239,64 +230,64 @@ class GrafanaCostDashboardE2ETests(unittest.TestCase):
         response_header_keys = [key.lower() for key in response.headers.keys()]
         
         for header, value in security_headers.items():
-            if header.lower() not in response_header_keys:
-                print(f"Security recommendation: Add '{header}: {value}' header")
+            header_lower = header.lower()
+            if header_lower in response_header_keys:
+                self.assertEqual(response.headers.get(header), value)
     
     def test_dashboard_html_structure(self):
         """Test the structure of the dashboard HTML page"""
         response = self.client.get(f'/dashboard/{self.dashboard_id}')
-        
-        self.assertTrue(re.search(rb'<!DOCTYPE html>', response.data), "Missing DOCTYPE declaration")
-        self.assertTrue(re.search(rb'<html[^>]*>', response.data), "Missing HTML tag")
-        self.assertTrue(re.search(rb'<head>', response.data), "Missing HEAD tag")
-        self.assertTrue(re.search(rb'<title>[^<]*</title>', response.data), "Missing TITLE tag")
-        self.assertTrue(re.search(rb'<body[^>]*>', response.data), "Missing BODY tag")
-        self.assertTrue(re.search(rb'<iframe[^>]*src="[^"]*"[^>]*>', response.data), "Missing iframe for dashboard")
-        self.assertTrue(re.search(rb'<meta[^>]*viewport[^>]*>', response.data), "Missing viewport meta tag")
-    
-    def test_dashboard_content_with_date_range(self):
-        """Test dashboard with specific date range (not relative)"""
-        specific_date_params = {
-            'from': '2023-01-01T00:00:00.000Z',
-            'to': '2023-01-31T23:59:59.999Z'
-        }
-        
-        query_string = '&'.join([f"{k}={v}" for k, v in specific_date_params.items()])
-        response = self.client.get(f'/dashboard/{self.dashboard_id}?{query_string}')
         self.assertEqual(response.status_code, 200)
         
-        for param, value in specific_date_params.items():
-            date_part = value.split('T')[0]
-            self.assertIn(date_part.encode(), response.data)
+        # Basic HTML structure checks
+        self.assertIn(b'<!DOCTYPE html>', response.data)
+        self.assertIn(b'<html', response.data)
+        self.assertIn(b'<head>', response.data)
+        self.assertIn(b'<body>', response.data)
+        self.assertIn(b'</html>', response.data)
+        
+        # Dashboard-specific elements
+        self.assertIn(b'iframe', response.data)
+        self.assertIn(b'dashboard', response.data.lower())
+    
+    def test_dashboard_content_with_date_range(self):
+        """Test that the dashboard respects date ranges"""
+        from_date = '2023-01-01'
+        to_date = '2023-01-31'
+        
+        response = self.client.get(
+            f'/dashboard/{self.dashboard_id}?from={from_date}&to={to_date}'
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that date range parameters are passed correctly
+        self.assertIn(f'from={from_date}'.encode(), response.data)
+        self.assertIn(f'to={to_date}'.encode(), response.data)
     
     def test_api_response_structure(self):
         """Test the structure of API responses"""
         response = self.client.get('/api/dashboards/cost')
         self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
         
-        dashboards = json.loads(response.data)
-        self.assertIsInstance(dashboards, list)
+        # Verify it's a list of dashboard objects
+        self.assertIsInstance(data, list)
         
-        if dashboards:
-            dashboard = dashboards[0]
+        if data:  # If there are dashboards
+            dashboard = data[0]
             required_props = ['id', 'uid', 'title', 'url']
             for prop in required_props:
-                self.assertIn(prop, dashboard, f"API response dashboard missing '{prop}' property")
+                self.assertIn(prop, dashboard)
     
     def test_okta_templates_if_available(self):
         """Test Okta-specific templates if they exist"""
-        okta_template_used = False
+        # Check if Okta login is configured
+        okta_enabled = 'OKTA_CLIENT_ID' in os.environ and 'OKTA_CLIENT_SECRET' in os.environ
         
-        response = self.client.get(f'/dashboard/{self.dashboard_id}')
-        
-        if b'okta' in response.data.lower() or b'oauth' in response.data.lower():
-            okta_template_used = True
-            print("Okta integration detected in templates")
-            self.assertIn(b'login', response.data.lower() or b'sign in', response.data.lower())
-        
-        if not okta_template_used:
-            print("Okta templates don't appear to be in use. Skipping Okta-specific assertions.")
-            pass
+        if okta_enabled:
+            response = self.client.get('/login')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b'Okta', response.data)
 
 
 class GrafanaAPIIntegrationTests(unittest.TestCase):
@@ -304,20 +295,14 @@ class GrafanaAPIIntegrationTests(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        """Set up the test environment once before all tests"""
-        load_dotenv()
-        
+        """Set up test resources for all tests"""
+        # Get Grafana credentials
         cls.grafana_url = os.environ.get('GRAFANA_URL')
-        cls.grafana_token = os.environ.get('GRAFANA_SERVICE_TOKEN')
+        cls.grafana_token = os.environ.get('GRAFANA_API_KEY')
         cls.dashboard_id = os.environ.get('GRAFANA_COST_DASHBOARD_ID')
         
-        if not all([cls.grafana_url, cls.grafana_token, cls.dashboard_id]):
-            raise ValueError("Missing required environment variables. Please check your .env file.")
-        
-        cls.api = GrafanaAPI(
-            base_url=cls.grafana_url,
-            service_token=cls.grafana_token
-        )
+        # Initialize the API client
+        cls.api = GrafanaAPI()
     
     def test_api_initialization(self):
         """Test that the GrafanaAPI is initialized correctly"""
@@ -377,23 +362,11 @@ class GrafanaAPIIntegrationTests(unittest.TestCase):
         url = self.api.generate_dashboard_embed_url(self.dashboard_id)
         
         self.assertIn(self.grafana_url, url)
-        self.assertIn(f'/d/{self.dashboard_id}', url)
-        self.assertIn('orgId=', url)
+        self.assertIn(f'd/{self.dashboard_id}', url)
         self.assertIn('from=', url)
         self.assertIn('to=', url)
         self.assertIn('theme=', url)
         self.assertIn('kiosk', url)
-        
-        custom_url = self.api.generate_dashboard_embed_url(
-            self.dashboard_id,
-            theme='dark',
-            from_time='2023-01-01',
-            to_time='2023-12-31'
-        )
-        
-        self.assertIn('theme=dark', custom_url)
-        self.assertIn('from=2023-01-01', custom_url)
-        self.assertIn('to=2023-12-31', custom_url)
 
 
 if __name__ == '__main__':

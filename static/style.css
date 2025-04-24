@@ -124,6 +124,26 @@ body {
   justify-content: center;
 }
 
+/* Hide email button since email functionality is disabled */
+a.btn:has(i.fas.fa-envelope),
+a[href*="email"]:not([href*="gmail"]),
+a.btn:has(.fa-envelope),
+a.btn:contains("Email") {
+  display: none !important;
+}
+
+/* Email button specifically in the dashboard view */
+a.btn.btn-primary:has(i.fas.fa-envelope),
+.btn-group a:nth-child(2):has(i.fas.fa-envelope) {
+  display: none !important;
+}
+
+/* Hide email related form elements */
+form[action*="email"],
+button[type="submit"]:has(i.fas.fa-envelope) {
+  display: none !important;
+}
+
 /* Form controls */
 .form-control {
   padding: 0.75rem 1rem;
